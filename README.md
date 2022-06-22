@@ -24,6 +24,7 @@ for X, Y in train:
 
 Notice that:
 
+* They receive the labels as scalars. No one-hot encoding should be performed. Any encoding will be performed by the loss, if necessary.
 * Losses may require different number of output neurons from your network. Therefore, it is necessary to ask them how many outputs are required.
 * The `process()` method must be called before calling `compute_loss()` or `to_proba()`. This is due to efficiency reasons.
 
