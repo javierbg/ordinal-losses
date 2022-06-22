@@ -13,13 +13,13 @@ PyTorch implementation of ordinal losses for neural networks from the following 
 pip3 install git+https://github.com/rpmcruz/ordinal-losses.git
 ```
 
-## Usage
-
-Pseudo-code usage:
+## Pseudo-code Usage
 
 ```python
 import ordinal_losses
 loss = ordinal_losses.OrdinalEncoder(K=10)
+# different losses require different number of output neurons, therefore you
+# should ask the loss for how many output neurons are necessary
 model = BuildModel(n_outputs=loss.how_many_outputs())
 for X, Y in train:
     outputs = model(X)
@@ -30,8 +30,5 @@ for X, Y in train:
     predicted_classes = loss.to_classes(probabilities)
 ```
 
-Notice that:
-
 * Your neural network should **not** perform any activation like softmax on the output.
 * You should **not** perform any pre-processing on the labels, such as one-hot encoding.
-* Losses may require different number of output neurons from your network. Therefore, it is necessary to ask them how many outputs are required, as in the example above.
