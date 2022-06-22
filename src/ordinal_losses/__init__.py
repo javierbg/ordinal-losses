@@ -44,11 +44,7 @@ class CrossEntropy:
         # how many output neurons does this loss require?
         return self.K
 
-    def process(self, x):
-        # model output -> whatever we need for the loss/probabilities
-        return x
-
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         # computes the loss
         return ce(Yhat, Y)
 
@@ -71,18 +67,26 @@ class CrossEntropy:
 
 class Beckham(CrossEntropy):
     # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
-    def process(self, x):
+    def activation(self, x):
         # they apply softplus (relu) to avoid log(negative)
         x = nn.Softplus()(x)
         KK = torch.arange(1., self.K+1, device=x.device)
         return KK*torch.log(x) - x - log_fact(KK)
+
+    def __call__(self, Yhat, Y):
+        Yhat = self.activation(Yhat)
+        return ce(Yhat, Y)
+
+    def to_proba(self, Yhat):
+        Yhat = self.activation(Yhat)
+        return super.to_proba(Yhat)
 
 class OrdinalEncoder(CrossEntropy):
     # Reference: https://arxiv.org/pdf/0704.1028.pdf
     def how_many_outputs(self):
         return self.K-1
 
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         # if K=4, then
         #     Y=0 => Y_=[0, 0, 0]
         #     Y=1 => Y_=[1, 0, 0]
@@ -108,7 +112,7 @@ class Unimodal_CrossEntropy(CrossEntropy):
     def how_many_outputs(self):
         return 1
 
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         return F.nll_loss(self.to_log_proba(Yhat), Y)
 
     def to_proba(self, Yhat):
@@ -133,7 +137,7 @@ class Unimodal_CrossEntropy(CrossEntropy):
         return num - den
 
 class Unimodal_MSE(Unimodal_CrossEntropy):
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         device = Yhat.device
         Phat = self.to_proba(Yhat)
         Y_onehot = torch.zeros(Phat.shape[0], self.K, device=device)
@@ -151,7 +155,7 @@ class OurLosses(CrossEntropy):
         self.omega = omega
 
 class CO2(OurLosses):
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         return self.lamda*ce(Yhat, Y) + neighbor_loss(self.omega, Yhat, Y)
 
 class CO(CO2):
@@ -161,5 +165,5 @@ class CO(CO2):
         super().__init__(pretrained_model, K, lambda_, 0)
 
 class HO2(OurLosses):
-    def compute_loss(self, Yhat, Y):
+    def __call__(self, Yhat, Y):
         return self.lamda*entropy_loss(Yhat) + neighbor_loss(self.omega, Yhat, Y)
