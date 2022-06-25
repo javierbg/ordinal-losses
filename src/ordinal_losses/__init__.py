@@ -120,7 +120,7 @@ class BinomialUnimodal_CE(CrossEntropy):
         den = log_fact(kk) + log_fact(K-kk-1)
         return num - den
 
-class BinomialUnimodal_MSE(BinomialUnimodal_CrossEntropy):
+class BinomialUnimodal_MSE(BinomialUnimodal_CE):
     def __call__(self, Yhat, Y):
         device = Yhat.device
         Phat = self.to_proba(Yhat)
