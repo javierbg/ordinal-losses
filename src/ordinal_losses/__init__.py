@@ -65,23 +65,7 @@ class CrossEntropy:
             Pc = torch.cumsum(Phat, 1)
             return torch.sum(Pc < 0.5, 1)
 
-class Beckham(CrossEntropy):
-    # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
-    def activation(self, x):
-        # they apply softplus (relu) to avoid log(negative)
-        x = nn.Softplus()(x)
-        KK = torch.arange(1., self.K+1, device=x.device)
-        return KK*torch.log(x) - x - log_fact(KK)
-
-    def __call__(self, Yhat, Y):
-        Yhat = self.activation(Yhat)
-        return ce(Yhat, Y)
-
-    def to_proba(self, Yhat):
-        Yhat = self.activation(Yhat)
-        return super.to_proba(Yhat)
-
-class OrdinalEncoder(CrossEntropy):
+class OrdinalEncoding(CrossEntropy):
     # Reference: https://arxiv.org/pdf/0704.1028.pdf
     def how_many_outputs(self):
         return self.K-1
@@ -107,7 +91,7 @@ class OrdinalEncoder(CrossEntropy):
         Phat = torch.cat((1-Phat[:, :1], Phat[:, :-1] - Phat[:, 1:], Phat[:, -1:]), 1)
         return torch.clamp(Phat, 0, 1)
 
-class Unimodal_CrossEntropy(CrossEntropy):
+class BinomialUnimodal_CE(CrossEntropy):
     # Reference: https://www.sciencedirect.com/science/article/pii/S089360800700202X
     def how_many_outputs(self):
         return 1
@@ -136,13 +120,29 @@ class Unimodal_CrossEntropy(CrossEntropy):
         den = log_fact(kk) + log_fact(K-kk-1)
         return num - den
 
-class Unimodal_MSE(Unimodal_CrossEntropy):
+class BinomialUnimodal_MSE(BinomialUnimodal_CrossEntropy):
     def __call__(self, Yhat, Y):
         device = Yhat.device
         Phat = self.to_proba(Yhat)
         Y_onehot = torch.zeros(Phat.shape[0], self.K, device=device)
         Y_onehot[range(Phat.shape[0]), Y] = 1
         return torch.mean((Phat - Y_onehot) ** 2)
+
+class PoissonUnimodal(CrossEntropy):
+    # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
+    def activation(self, x):
+        # they apply softplus (relu) to avoid log(negative)
+        x = nn.Softplus()(x)
+        KK = torch.arange(1., self.K+1, device=x.device)
+        return KK*torch.log(x) - x - log_fact(KK)
+
+    def __call__(self, Yhat, Y):
+        Yhat = self.activation(Yhat)
+        return ce(Yhat, Y)
+
+    def to_proba(self, Yhat):
+        Yhat = self.activation(Yhat)
+        return super.to_proba(Yhat)
 
 # Our losses.
 # Notice that the following constructors require extra parameters.
