@@ -6,6 +6,7 @@ PyTorch implementation of ordinal losses for neural networks from the following 
 * da Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The unimodal model for the classification of ordinal data." Neural Networks 21.1 (2008): 78-91.
 * Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.
 
+If you use this package, please cite the last paper.
 
 ## Install
 
