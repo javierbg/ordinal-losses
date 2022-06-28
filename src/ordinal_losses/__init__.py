@@ -52,15 +52,15 @@ class CrossEntropy:
         # call output -> probabilities
         return F.softmax(Yhat, 1)
 
-    def to_classes(self, Phat, type):
+    def to_classes(self, Phat, method='mode'):
         # probabilities -> classes
-        assert type in ('mode', 'mean', 'median')
-        if type == 'mode':
+        assert method in ('mode', 'mean', 'median')
+        if method == 'mode':
             return Phat.argmax(1)
-        if type == 'mean':  # so-called expectation trick
+        if method == 'mean':  # so-called expectation trick
             kk = torch.arange(args.classes, device=Phat.device)
             return torch.round(torch.sum(Yhat * kk, 1)).long()
-        if type == 'median':
+        if method == 'median':
             # the weighted median is the value whose cumulative probability is 0.5
             Pc = torch.cumsum(Phat, 1)
             return torch.sum(Pc < 0.5, 1)
