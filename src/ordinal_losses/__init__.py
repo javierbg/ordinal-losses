@@ -142,7 +142,7 @@ class PoissonUnimodal(CrossEntropy):
 
     def to_proba(self, Yhat):
         Yhat = self.activation(Yhat)
-        return super.to_proba(Yhat)
+        return super().to_proba(Yhat)
 
 # Our losses.
 # Notice that the following constructors require extra parameters.
