@@ -10,29 +10,41 @@ def fact(x):
 def log_fact(x):
     return torch.lgamma(x+1)
 
-
 #################### LOWER-LEVEL ####################
 
 ce = nn.CrossEntropyLoss()
 
-def entropy_loss(Yhat):
+def entropy_term(Yhat):
     # https://en.wikipedia.org/wiki/Entropy_(information_theory)
-    P = F.softmax(Yhat, -1)
-    logP = F.log_softmax(Yhat, -1)
+    P = F.softmax(Yhat, 1)
+    logP = F.log_softmax(Yhat, 1)
     N = P.shape[0]
     return -torch.sum(P * logP) / N
 
-def neighbor_loss(margin, Yhat, Y):
-    margin = torch.tensor(margin, device=device)
-    P = F.softmax(Yhat, -1)
+def neighbor_term(Yhat, Y, margin):
+    margin = torch.tensor(margin, device=Y.device)
+    P = F.softmax(Yhat, 1)
     K = P.shape[1]
-    loss = 0
-    for k in range(K-1):
-        # force previous probability to be superior to next
-        reg_gt = (Y >= k+1).float() * F.relu(margin+P[:,  k]-P[:, k+1])
-        reg_lt = (Y <= k).float() * F.relu(margin+P[:, k+1]-P[:, k])
-        loss += torch.mean(reg_gt + reg_lt)
-    return loss
+    dP = torch.diff(P, 1)
+    sign = (torch.arange(K-1)[None] >= Y[:, None])*2-1
+    return torch.mean(torch.sum(F.relu(margin + sign*dP, 1)))
+
+def quasi_neighbor_term(Yhat, Y, margin):
+    margin = torch.tensor(margin, device=Y.device)
+    P = F.softmax(Yhat, 1)
+    K = P.shape[1]
+
+    # force close neighborhoods to be inferior to True class prob
+    neigh_gt = torch.sum(F.relu(margin+P[Y > 0, Y-1]-P[:, Y]), 1)
+    neigh_lt = torch.sum(F.relu(margin+P[Y < K-1, Y+1]-P[:, Y]), 1)
+
+    # force previous probability to be inferior than close neighborhoods of true class
+    left = torch.arange(K)[None] < Y[:, None]-1
+    reg_gt = torch.sum(left * F.relu(margin+P-P[:, Y-1]), 1)
+    right = torch.arange(K)[None] > Y[:, None]+1
+    reg_lt = torch.sum(right * F.relu(margin+P-P[:, (Y+1)%K]), 1)
+
+    return torch.mean(neigh_gt + neigh_lt + reg_gt + reg_lt)
 
 #################### HIGHER-LEVEL ####################
 
@@ -132,7 +144,7 @@ class PoissonUnimodal(CrossEntropy):
     # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
     def activation(self, x):
         # they apply softplus (relu) to avoid log(negative)
-        x = nn.Softplus()(x)
+        x = F.softplus(x)
         KK = torch.arange(1., self.K+1, device=x.device)
         return KK*torch.log(x) - x - log_fact(KK)
 
@@ -144,7 +156,7 @@ class PoissonUnimodal(CrossEntropy):
         Yhat = self.activation(Yhat)
         return super().to_proba(Yhat)
 
-# Our losses.
+# Our losses that promote unimodality.
 # Notice that the following constructors require extra parameters.
 # Reference: https://peerj.com/articles/cs-457/
 
@@ -156,14 +168,46 @@ class OurLosses(CrossEntropy):
 
 class CO2(OurLosses):
     def __call__(self, Yhat, Y):
-        return self.lamda*ce(Yhat, Y) + neighbor_loss(self.omega, Yhat, Y)
+        return ce(Yhat, Y) + self.lamda*entropy_term(Yhat, Y, self.omega)
 
 class CO(CO2):
-    def __init__(self, pretrained_model, K, lambda_, omega):
+    def __init__(self, K, lamda, omega):
         # CO is CO2 with omega=0
         # for convenience, we still receive an omega, but we ignore it
-        super().__init__(pretrained_model, K, lambda_, 0)
+        super().__init__(K, lamda, 0)
 
 class HO2(OurLosses):
     def __call__(self, Yhat, Y):
-        return self.lamda*entropy_loss(Yhat) + neighbor_loss(self.omega, Yhat, Y)
+        return entropy_term(Yhat) + self.lamda*neighbor_term(Yhat, Y, self.omega)
+
+# Our losses that promote quasi-unimodality (they are more forgiving than the
+# previous ones).
+# Notice that the following constructors require extra parameters.
+# Reference: https://www.mdpi.com/2227-7390/10/6/980
+
+class QUL(CrossEntropy):
+    def __init__(self, K, lamda, omega):
+        # we take the lamda for congruence, but we ignore it
+        super().__init__(K)
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return quasi_neighbor_term(Yhat, Y, self.omega)
+
+class QUL_HO(CrossEntropy):
+    def __init__(self, K, lamda, omega):
+        super().__init__(K)
+        self.lambda_ = lambda_
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return entropy_term(Yhat) + self.lamda*quasi_unimodal_loss(Yhat, Y, self.omega)
+
+class QUL_CE(CrossEntropy):
+    def __init__(self, K, lamda, omega):
+        super().__init__(K)
+        self.lamda = lamda
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return ce(Yhat, Y) + self.lamda*quasi_unimodal_loss(self.omega, Yhat, Y)
