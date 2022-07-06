@@ -40,11 +40,11 @@ def quasi_neighbor_term(Yhat, Y, margin):
 
     # force previous probability to be inferior than close neighborhoods of true class
     left = torch.arange(K)[None] < Y[:, None]-1
-    reg_gt = torch.sum(left * F.relu(margin+P-P[:, Y-1]), 1)
+    reg_lt = torch.sum(left * F.relu(margin+P-P[:, Y-1]), 1)
     right = torch.arange(K)[None] > Y[:, None]+1
-    reg_lt = torch.sum(right * F.relu(margin+P-P[:, (Y+1)%K]), 1)
+    reg_gt = torch.sum(right * F.relu(margin+P-P[:, (Y+1)%K]), 1)
 
-    return torch.mean(neigh_gt + neigh_lt + reg_gt + reg_lt)
+    return torch.mean(neigh_gt + neigh_lt + reg_lt + reg_gt)
 
 #################### HIGHER-LEVEL ####################
 
