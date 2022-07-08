@@ -157,7 +157,7 @@ class PoissonUnimodal(CrossEntropy):
         return super().to_proba(Yhat)
 
 # Our losses that promote unimodality.
-# Notice that the following constructors require extra parameters.
+# Notice that our losses require extra parameters: lamda and omega.
 # Reference: https://peerj.com/articles/cs-457/
 
 class OurLosses(CrossEntropy):
@@ -167,14 +167,9 @@ class OurLosses(CrossEntropy):
         self.omega = omega
 
 class CO2(OurLosses):
+    # CO is the same with omega=0
     def __call__(self, Yhat, Y):
         return ce(Yhat, Y) + self.lamda*entropy_term(Yhat, Y, self.omega)
-
-class CO(CO2):
-    def __init__(self, K, lamda, omega):
-        # CO is CO2 with omega=0
-        # for convenience, we still receive an omega, but we ignore it
-        super().__init__(K, lamda, 0)
 
 class HO2(OurLosses):
     def __call__(self, Yhat, Y):
@@ -182,32 +177,16 @@ class HO2(OurLosses):
 
 # Our losses that promote quasi-unimodality (they are more forgiving than the
 # previous ones).
-# Notice that the following constructors require extra parameters.
 # Reference: https://www.mdpi.com/2227-7390/10/6/980
 
-class QUL(CrossEntropy):
-    def __init__(self, K, lamda, omega):
-        # we take the lamda for congruence, but we ignore it
-        super().__init__(K)
-        self.omega = omega
-
+class QUL(OurLosses):
     def __call__(self, Yhat, Y):
         return quasi_neighbor_term(Yhat, Y, self.omega)
 
-class QUL_HO(CrossEntropy):
-    def __init__(self, K, lamda, omega):
-        super().__init__(K)
-        self.lambda_ = lambda_
-        self.omega = omega
-
-    def __call__(self, Yhat, Y):
-        return entropy_term(Yhat) + self.lamda*quasi_unimodal_loss(Yhat, Y, self.omega)
-
-class QUL_CE(CrossEntropy):
-    def __init__(self, K, lamda, omega):
-        super().__init__(K)
-        self.lamda = lamda
-        self.omega = omega
-
+class QUL_CE(OurLosses):
     def __call__(self, Yhat, Y):
         return ce(Yhat, Y) + self.lamda*quasi_unimodal_loss(self.omega, Yhat, Y)
+
+class QUL_HO(OurLosses):
+    def __call__(self, Yhat, Y):
+        return entropy_term(Yhat) + self.lamda*quasi_unimodal_loss(Yhat, Y, self.omega)
