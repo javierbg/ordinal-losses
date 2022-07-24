@@ -26,7 +26,7 @@ def neighbor_term(Yhat, Y, margin):
     P = F.softmax(Yhat, 1)
     K = P.shape[1]
     dP = torch.diff(P, 1)
-    sign = (torch.arange(K-1)[None] >= Y[:, None])*2-1
+    sign = (torch.arange(K-1, device=Y.device)[None] >= Y[:, None])*2-1
     return torch.mean(torch.sum(F.relu(margin + sign*dP, 1)))
 
 def quasi_neighbor_term(Yhat, Y, margin):
@@ -39,9 +39,9 @@ def quasi_neighbor_term(Yhat, Y, margin):
     neigh_lt = torch.sum(F.relu(margin+P[Y < K-1, Y+1]-P[:, Y]), 1)
 
     # force previous probability to be inferior than close neighborhoods of true class
-    left = torch.arange(K)[None] < Y[:, None]-1
+    left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
     reg_lt = torch.sum(left * F.relu(margin+P-P[:, Y-1]), 1)
-    right = torch.arange(K)[None] > Y[:, None]+1
+    right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
     reg_gt = torch.sum(right * F.relu(margin+P-P[:, (Y+1)%K]), 1)
 
     return torch.mean(neigh_gt + neigh_lt + reg_lt + reg_gt)
@@ -169,7 +169,7 @@ class OurLosses(CrossEntropy):
 class CO2(OurLosses):
     # CO is the same with omega=0
     def __call__(self, Yhat, Y):
-        return ce(Yhat, Y) + self.lamda*entropy_term(Yhat, Y, self.omega)
+        return ce(Yhat, Y) + self.lamda*neighbor_term(Yhat, Y, self.omega)
 
 class HO2(OurLosses):
     def __call__(self, Yhat, Y):
