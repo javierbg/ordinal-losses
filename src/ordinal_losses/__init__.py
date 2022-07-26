@@ -156,6 +156,16 @@ class PoissonUnimodal(CrossEntropy):
         Yhat = self.activation(Yhat)
         return super().to_proba(Yhat)
 
+class CDW_CE(CrossEntropy):
+    # Reference: https://arxiv.org/pdf/2202.05167.pdf
+    def __init__(self, K, alpha):
+        super().__init__(K)
+        self.alpha = alpha
+
+    def __call__(self, Yhat, Y):
+        Yhat = F.softmax(Yhat, 1)
+        return -torch.mean(torch.log(1-Yhat) * torch.abs(torch.arange(self.K)[None]-Y[:, None])**self.alpha)
+
 # Our losses that promote unimodality.
 # Notice that our losses require extra parameters: lamda and omega.
 # Reference: https://peerj.com/articles/cs-457/
