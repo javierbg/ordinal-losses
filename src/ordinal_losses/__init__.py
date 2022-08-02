@@ -158,7 +158,7 @@ class PoissonUnimodal(CrossEntropy):
 
 class CDW_CE(CrossEntropy):
     # Reference: https://arxiv.org/pdf/2202.05167.pdf
-    def __init__(self, K, alpha):
+    def __init__(self, K, alpha=5):
         super().__init__(K)
         self.alpha = alpha
 
@@ -171,7 +171,7 @@ class CDW_CE(CrossEntropy):
 # Reference: https://peerj.com/articles/cs-457/
 
 class OurLosses(CrossEntropy):
-    def __init__(self, K, lamda, omega):
+    def __init__(self, K, lamda=0.1, omega=0.05):
         super().__init__(K)
         self.lamda = lamda
         self.omega = omega
@@ -180,6 +180,11 @@ class CO2(OurLosses):
     # CO is the same with omega=0
     def __call__(self, Yhat, Y):
         return ce(Yhat, Y) + self.lamda*neighbor_term(Yhat, Y, self.omega)
+
+class CO(CO2):
+    # CO is the same as CO2 with omega=0
+    def __init__(self, K, lamda=0.1, omega=0.05):
+        super().__init__(K, lamda, 0)
 
 class HO2(OurLosses):
     def __call__(self, Yhat, Y):
