@@ -195,8 +195,8 @@ class QUL(OurLosses):
 
 class QUL_CE(OurLosses):
     def __call__(self, Yhat, Y):
-        return ce(Yhat, Y) + self.lamda*quasi_unimodal_loss(self.omega, Yhat, Y)
+        return ce(Yhat, Y) + self.lamda*quasi_neighbor_term(self.omega, Yhat, Y)
 
 class QUL_HO(OurLosses):
     def __call__(self, Yhat, Y):
-        return entropy_term(Yhat) + self.lamda*quasi_unimodal_loss(Yhat, Y, self.omega)
+        return entropy_term(Yhat) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
