@@ -35,8 +35,8 @@ def quasi_neighbor_term(Yhat, Y, margin):
     K = P.shape[1]
 
     # force close neighborhoods to be inferior to True class prob
-    neigh_gt = torch.sum(F.relu(margin+P[Y > 0, Y-1]-P[:, Y]), 1)
-    neigh_lt = torch.sum(F.relu(margin+P[Y < K-1, Y+1]-P[:, Y]), 1)
+    neigh_gt = torch.sum(F.relu(margin+P[Y > 0, Y-1]-P[Y > 0, Y]), 1)
+    neigh_lt = torch.sum(F.relu(margin+P[Y < K-1, Y+1]-P[Y < K-1, Y]), 1)
 
     # force previous probability to be inferior than close neighborhoods of true class
     left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
@@ -200,7 +200,7 @@ class QUL(OurLosses):
 
 class QUL_CE(OurLosses):
     def __call__(self, Yhat, Y):
-        return ce(Yhat, Y) + self.lamda*quasi_neighbor_term(self.omega, Yhat, Y)
+        return ce(Yhat, Y) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
 
 class QUL_HO(OurLosses):
     def __call__(self, Yhat, Y):
