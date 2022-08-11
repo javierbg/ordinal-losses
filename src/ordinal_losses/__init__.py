@@ -10,6 +10,10 @@ def fact(x):
 def log_fact(x):
     return torch.lgamma(x+1)
 
+# we are using softplus instead of relu (like http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf)
+# since it is smoother to optimize.
+approx_relu = F.softplus
+
 #################### LOWER-LEVEL ####################
 
 ce = nn.CrossEntropyLoss()
@@ -27,7 +31,7 @@ def neighbor_term(Yhat, Y, margin):
     K = P.shape[1]
     dP = torch.diff(P, 1)
     sign = (torch.arange(K-1, device=Y.device)[None] >= Y[:, None])*2-1
-    return torch.mean(torch.sum(F.relu(margin + sign*dP, 1)))
+    return torch.mean(torch.sum(approx_relu(margin + sign*dP, 1)))
 
 def quasi_neighbor_term(Yhat, Y, margin):
     margin = torch.tensor(margin, device=Y.device)
@@ -35,14 +39,14 @@ def quasi_neighbor_term(Yhat, Y, margin):
     K = P.shape[1]
 
     # force close neighborhoods to be inferior to True class prob
-    neigh_gt = F.relu(margin+P[Y > 0, Y-1]-P[Y > 0, Y])
-    neigh_lt = F.relu(margin+P[Y < K-1, Y+1]-P[Y < K-1, Y])
+    neigh_gt = approx_relu(margin+P[Y > 0, Y-1]-P[Y > 0, Y])
+    neigh_lt = approx_relu(margin+P[Y < K-1, Y+1]-P[Y < K-1, Y])
 
     # force previous probability to be inferior than close neighborhoods of true class
     left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
-    reg_lt = torch.sum(left * F.relu(margin+P-P[:, Y-1]), 1)
+    reg_lt = torch.sum(left * approx_relu(margin+P-P[:, Y-1]), 1)
     right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
-    reg_gt = torch.sum(right * F.relu(margin+P-P[:, (Y+1)%K]), 1)
+    reg_gt = torch.sum(right * approx_relu(margin+P-P[:, (Y+1)%K]), 1)
 
     return torch.mean(neigh_gt + neigh_lt + reg_lt + reg_gt)
 
