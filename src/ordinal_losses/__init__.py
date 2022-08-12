@@ -37,18 +37,21 @@ def quasi_neighbor_term(Yhat, Y, margin):
     margin = torch.tensor(margin, device=Y.device)
     P = F.softmax(Yhat, 1)
     K = P.shape[1]
+    ix = torch.arange(len(P))
 
     # force close neighborhoods to be inferior to True class prob
-    neigh_gt = approx_relu(margin+P[Y > 0, Y-1]-P[Y > 0, Y])
-    neigh_lt = approx_relu(margin+P[Y < K-1, Y+1]-P[Y < K-1, Y])
+    has_left = Y > 0
+    close_left = has_left * approx_relu(margin+P[ix, Y-1]-P[:, Y])
+    has_right = Y < K-1
+    close_right = has_right * approx_relu(margin+P[ix, (Y+1)%K]-P[:, Y])
 
-    # force previous probability to be inferior than close neighborhoods of true class
+    # force distant probabilities to be inferior than close neighborhoods of true class
     left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
-    reg_lt = torch.sum(left * approx_relu(margin+P-P[:, Y-1]), 1)
+    distant_left = torch.sum(left * approx_relu(margin+P-P[ix, Y-1][:, None]), 1)
     right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
-    reg_gt = torch.sum(right * approx_relu(margin+P-P[:, (Y+1)%K]), 1)
+    distant_right = torch.sum(right * approx_relu(margin+P-P[ix, (Y+1)%K][:, None]), 1)
 
-    return torch.mean(neigh_gt + neigh_lt + reg_lt + reg_gt)
+    return torch.mean(close_left + close_right + distant_left + distant_right)
 
 #################### HIGHER-LEVEL ####################
 
