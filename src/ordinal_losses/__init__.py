@@ -170,8 +170,8 @@ class CDW_CE(CrossEntropy):
         self.alpha = alpha
 
     def __call__(self, Yhat, Y):
-        Yhat = F.softmax(Yhat, 1)
-        return -torch.mean(torch.log(1-Yhat) * torch.abs(torch.arange(self.K, device=Y.device)[None]-Y[:, None])**self.alpha)
+        log_1minus_Yhat = F.log_softmax(-Yhat, 1)
+        return -torch.mean(log_1minus_Yhat * torch.abs(torch.arange(self.K, device=Y.device)[None]-Y[:, None])**self.alpha)
 
 # Our losses that promote unimodality.
 # Notice that our losses require extra parameters: lamda and omega.
