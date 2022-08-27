@@ -63,13 +63,17 @@ class CrossEntropy:
         # how many output neurons does this loss require?
         return self.K
 
+    def activation(self, Yhat):
+        # output post-processing, if necessary
+        return Yhat
+
     def __call__(self, Yhat, Y):
         # computes the loss
-        return ce(Yhat, Y)
+        return ce(self.activation(Yhat), Y)
 
     def to_proba(self, Yhat):
         # call output -> probabilities
-        return F.softmax(Yhat, 1)
+        return F.softmax(self.activation(Yhat), 1)
 
     def to_classes(self, Phat, method='mode'):
         # probabilities -> classes
@@ -97,7 +101,7 @@ class OrdinalEncoding(CrossEntropy):
         #     Y=3 => Y_=[1, 1, 1]
         KK = torch.arange(self.K-1, device=Y.device).expand(Y.shape[0], -1)
         YY = (Y[:, None] > KK).float()
-        return F.binary_cross_entropy_with_logits(Yhat, YY)
+        return ce(Yhat, YY)
 
     def to_proba(self, Yhat):
         # we need to convert mass distribution into probabilities
@@ -149,19 +153,14 @@ class BinomialUnimodal_MSE(BinomialUnimodal_CE):
 
 class PoissonUnimodal(CrossEntropy):
     # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
-    def activation(self, x):
+    def how_many_outputs(self):
+        return 1
+
+    def activation(self, Yhat):
         # they apply softplus (relu) to avoid log(negative)
-        x = F.softplus(x)
-        KK = torch.arange(1., self.K+1, device=x.device)
-        return KK*torch.log(x) - x - log_fact(KK)
-
-    def __call__(self, Yhat, Y):
-        Yhat = self.activation(Yhat)
-        return ce(Yhat, Y)
-
-    def to_proba(self, Yhat):
-        Yhat = self.activation(Yhat)
-        return super().to_proba(Yhat)
+        Yhat = F.softplus(Yhat)
+        KK = torch.arange(1., self.K+1, device=Yhat.device)[None]
+        return KK*torch.log(Yhat) - Yhat - log_fact(KK)
 
 class CDW_CE(CrossEntropy):
     # Reference: https://arxiv.org/pdf/2202.05167.pdf
