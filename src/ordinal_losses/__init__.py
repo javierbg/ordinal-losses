@@ -95,23 +95,24 @@ class OrdinalEncoding(CrossEntropy):
 
     def __call__(self, Yhat, Y):
         # if K=4, then
-        #     Y=0 => Y_=[0, 0, 0]
-        #     Y=1 => Y_=[1, 0, 0]
-        #     Y=2 => Y_=[1, 1, 0]
-        #     Y=3 => Y_=[1, 1, 1]
+        #                k = 0  1  2
+        #     Y=0 => P(Y>k)=[0, 0, 0]
+        #     Y=1 => P(Y>k)=[1, 0, 0]
+        #     Y=2 => P(Y>k)=[1, 1, 0]
+        #     Y=3 => P(Y>k)=[1, 1, 1]
         KK = torch.arange(self.K-1, device=Y.device).expand(Y.shape[0], -1)
         YY = (Y[:, None] > KK).float()
         return ce(Yhat, YY)
 
     def to_proba(self, Yhat):
         # we need to convert mass distribution into probabilities
-        # i.e. P(Y >= k) into P(Y = k)
-        # P(Y=0) = 1-P(Y≥1)
-        # P(Y=1) = P(Y≥1)-P(Y≥2)
+        # i.e. P(Y>k) into P(Y=k)
+        # P(Y=0) = 1-P(Y>0)
+        # P(Y=1) = P(Y>0)-P(Y>1)
         # ...
-        # P(Y=K-1) = P(Y≥K-1)
+        # P(Y=K-1) = P(Y>K-2)
         Phat = torch.sigmoid(Yhat)
-        Phat = torch.cat((1-Phat[:, :1], Phat[:, :-1] - Phat[:, 1:], Phat[:, -1:]), 1)
+        Phat = torch.cat((1-Phat[:, :1], Phat[:, :-1]-Phat[:, 1:], Phat[:, -1:]), 1)
         return torch.clamp(Phat, 0, 1)
 
 class BinomialUnimodal_CE(CrossEntropy):
