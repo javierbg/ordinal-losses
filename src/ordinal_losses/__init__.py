@@ -113,7 +113,10 @@ class OrdinalEncoding(CrossEntropy):
         # P(Y=K-1) = P(Y>K-2)
         Phat = torch.sigmoid(Yhat)
         Phat = torch.cat((1-Phat[:, :1], Phat[:, :-1]-Phat[:, 1:], Phat[:, -1:]), 1)
-        return torch.clamp(Phat, 0, 1)
+        # there may be small discrepancies
+        Phat = torch.clamp(Phat, 0, 1)
+        Phat = Phat / Phat.sum(1, keepdim=True)
+        return Phat
 
 class BinomialUnimodal_CE(CrossEntropy):
     # Reference: https://www.sciencedirect.com/science/article/pii/S089360800700202X
