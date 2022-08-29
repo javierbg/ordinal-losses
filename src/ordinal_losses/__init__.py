@@ -109,7 +109,7 @@ class OrdinalEncoding(CrossEntropy):
         #     Y=3 => P(Y>k)=[1, 1, 1]
         KK = torch.arange(self.K-1, device=Y.device).expand(Y.shape[0], -1)
         YY = (Y[:, None] > KK).float()
-        return F.binary_cross_entropy(Yhat, YY)
+        return F.binary_cross_entropy_with_logits(Yhat, YY)
 
     def to_proba(self, Yhat):
         # we need to convert mass distribution into probabilities
