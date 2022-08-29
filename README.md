@@ -27,9 +27,8 @@ for X, Y in train:
     outputs = model(X)
     loss_value = loss(outputs)
     # for evaluation purposes, use our methods to convert the outputs into
-    # probabilities
-    probabilities = loss.to_proba(outputs)
-    predicted_classes = loss.to_classes(probabilities)
+    # probabilities or classes
+    probabilities, classes = loss.to_proba_and_classes(outputs)
 ```
 
 * Your neural network should **not** perform any activation like softmax on the output.

@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+import warnings
 
 #################### UTILITIES ####################
 
@@ -14,7 +15,7 @@ def log_fact(x):
 # since it is smoother to optimize.
 approx_relu = F.softplus
 
-#################### LOWER-LEVEL ####################
+#################### LOW-LEVEL ####################
 
 ce = nn.CrossEntropyLoss()
 
@@ -53,7 +54,7 @@ def quasi_neighbor_term(Yhat, Y, margin):
 
     return torch.mean(close_left + close_right + distant_left + distant_right)
 
-#################### HIGHER-LEVEL ####################
+#################### LOSSES ####################
 
 class CrossEntropy:
     def __init__(self, K):
@@ -75,10 +76,11 @@ class CrossEntropy:
         # call output -> probabilities
         return F.softmax(self.activation(Yhat), 1)
 
-    def to_classes(self, Phat, method='mode'):
-        # probabilities -> classes
-        assert method in ('mode', 'mean', 'median')
-        if method == 'mode':
+    def to_classes(self, Phat, method=None):
+        # None=default; this is typically 'mode', but can be different for each
+        # loss.
+        assert method in (None, 'mode', 'mean', 'median')
+        if method in (None, 'mode'):
             return Phat.argmax(1)
         if method == 'mean':  # so-called expectation trick
             kk = torch.arange(args.classes, device=Phat.device)
@@ -87,6 +89,11 @@ class CrossEntropy:
             # the weighted median is the value whose cumulative probability is 0.5
             Pc = torch.cumsum(Phat, 1)
             return torch.sum(Pc < 0.5, 1)
+
+    def to_proba_and_classes(self, Yhat, method=None):
+        Phat = self.to_proba(Yhat, method)
+        Khat = self.to_classes(Phat)
+        return Phat, Khat
 
 class OrdinalEncoding(CrossEntropy):
     # Reference: https://arxiv.org/pdf/0704.1028.pdf
@@ -102,7 +109,7 @@ class OrdinalEncoding(CrossEntropy):
         #     Y=3 => P(Y>k)=[1, 1, 1]
         KK = torch.arange(self.K-1, device=Y.device).expand(Y.shape[0], -1)
         YY = (Y[:, None] > KK).float()
-        return ce(Yhat, YY)
+        return F.binary_cross_entropy(Yhat, YY)
 
     def to_proba(self, Yhat):
         # we need to convert mass distribution into probabilities
@@ -117,6 +124,17 @@ class OrdinalEncoding(CrossEntropy):
         Phat = torch.clamp(Phat, 0, 1)
         Phat = Phat / Phat.sum(1, keepdim=True)
         return Phat
+
+    def to_classes(self, Phat, method=None):
+        warnings.warn('OrdinalEncoding.to_classes(): To use the same algorithm as the paper, use to_proba_and_classes(output) instead of to_classes(to_proba(output)) separately.')
+        return super().to_classes(Phat, method)
+
+    def to_proba_and_classes(self, Yhat, method=None):
+        if method is None:
+            Phat = self.to_proba(self, Yhat)
+            Khat = torch.sum(Yhat >= 0, 1)
+            return Phat, Khat
+        return super().to_proba_and_classes(self, Yhat, method)
 
 class BinomialUnimodal_CE(CrossEntropy):
     # Reference: https://www.sciencedirect.com/science/article/pii/S089360800700202X
