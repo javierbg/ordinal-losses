@@ -91,8 +91,8 @@ class CrossEntropy:
             return torch.sum(Pc < 0.5, 1)
 
     def to_proba_and_classes(self, Yhat, method=None):
-        Phat = self.to_proba(Yhat, method)
-        Khat = self.to_classes(Phat)
+        Phat = self.to_proba(Yhat)
+        Khat = self.to_classes(Phat, method)
         return Phat, Khat
 
 class OrdinalEncoding(CrossEntropy):
