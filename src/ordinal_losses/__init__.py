@@ -131,7 +131,7 @@ class OrdinalEncoding(CrossEntropy):
 
     def to_proba_and_classes(self, Yhat, method=None):
         if method is None:
-            Phat = self.to_proba(self, Yhat)
+            Phat = self.to_proba(Yhat)
             Khat = torch.sum(Yhat >= 0, 1)
             return Phat, Khat
         return super().to_proba_and_classes(self, Yhat, method)
