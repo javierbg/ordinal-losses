@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import warnings
 
-#################### UTILITIES ####################
+############################## UTILITIES #####################################
 
 def fact(x):
     return torch.exp(torch.lgamma(x+1))
@@ -11,50 +11,12 @@ def fact(x):
 def log_fact(x):
     return torch.lgamma(x+1)
 
-# we are using softplus instead of relu (like http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf)
-# since it is smoother to optimize.
+# we are using softplus instead of relu since it is smoother to optimize.
+# as in http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
 approx_relu = F.softplus
-
-#################### LOW-LEVEL ####################
-
 ce = nn.CrossEntropyLoss()
 
-def entropy_term(Yhat):
-    # https://en.wikipedia.org/wiki/Entropy_(information_theory)
-    P = F.softmax(Yhat, 1)
-    logP = F.log_softmax(Yhat, 1)
-    N = P.shape[0]
-    return -torch.sum(P * logP) / N
-
-def neighbor_term(Yhat, Y, margin):
-    margin = torch.tensor(margin, device=Y.device)
-    P = F.softmax(Yhat, 1)
-    K = P.shape[1]
-    dP = torch.diff(P, 1)
-    sign = (torch.arange(K-1, device=Y.device)[None] >= Y[:, None])*2-1
-    return torch.mean(torch.sum(approx_relu(margin + sign*dP, 1)))
-
-def quasi_neighbor_term(Yhat, Y, margin):
-    margin = torch.tensor(margin, device=Y.device)
-    P = F.softmax(Yhat, 1)
-    K = P.shape[1]
-    ix = torch.arange(len(P))
-
-    # force close neighborhoods to be inferior to True class prob
-    has_left = Y > 0
-    close_left = has_left * approx_relu(margin+P[ix, Y-1]-P[:, Y])
-    has_right = Y < K-1
-    close_right = has_right * approx_relu(margin+P[ix, (Y+1)%K]-P[:, Y])
-
-    # force distant probabilities to be inferior than close neighborhoods of true class
-    left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
-    distant_left = torch.sum(left * approx_relu(margin+P-P[ix, Y-1][:, None]), 1)
-    right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
-    distant_right = torch.sum(right * approx_relu(margin+P-P[ix, (Y+1)%K][:, None]), 1)
-
-    return torch.mean(close_left + close_right + distant_left + distant_right)
-
-#################### LOSSES ####################
+################################ LOSSES ######################################
 
 class CrossEntropy:
     def __init__(self, K):
@@ -95,8 +57,14 @@ class CrossEntropy:
         Khat = self.to_classes(Phat, method)
         return Phat, Khat
 
+##############################################################################
+# Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network      #
+# approach to ordinal regression." 2008 IEEE international joint conference  #
+# on neural networks (IEEE world congress on computational intelligence).    #
+# IEEE, 2008. https://arxiv.org/pdf/0704.1028.pdf                            #
+##############################################################################
+
 class OrdinalEncoding(CrossEntropy):
-    # Reference: https://arxiv.org/pdf/0704.1028.pdf
     def how_many_outputs(self):
         return self.K-1
 
@@ -136,8 +104,14 @@ class OrdinalEncoding(CrossEntropy):
             return Phat, Khat
         return super().to_proba_and_classes(self, Yhat, method)
 
+##############################################################################
+# da Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The        #
+# unimodal model for the classification of ordinal data." Neural Networks    #
+# 21.1 (2008): 78-91.                                                        #
+# https://www.sciencedirect.com/science/article/pii/S089360800700202X        #
+##############################################################################
+
 class BinomialUnimodal_CE(CrossEntropy):
-    # Reference: https://www.sciencedirect.com/science/article/pii/S089360800700202X
     def how_many_outputs(self):
         return 1
 
@@ -173,8 +147,14 @@ class BinomialUnimodal_MSE(BinomialUnimodal_CE):
         Y_onehot[range(Phat.shape[0]), Y] = 1
         return torch.mean((Phat - Y_onehot) ** 2)
 
+##############################################################################
+# Beckham, Christopher, and Christopher Pal. "Unimodal probability           #
+# distributions for deep ordinal classification." International Conference   #
+# on Machine Learning. PMLR, 2017.                                           #
+# http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf                 #
+##############################################################################
+
 class PoissonUnimodal(CrossEntropy):
-    # Reference: http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
     def how_many_outputs(self):
         return 1
 
@@ -183,6 +163,109 @@ class PoissonUnimodal(CrossEntropy):
         Yhat = F.softplus(Yhat)
         KK = torch.arange(1., self.K+1, device=Yhat.device)[None]
         return KK*torch.log(Yhat) - Yhat - log_fact(KK)
+
+##############################################################################
+# Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for #
+# for classification of cervical cancer risk." PeerJ Computer Science 7      #
+# (2021): e457. https://peerj.com/articles/cs-457/                           #
+##############################################################################
+# These losses require two parameters: omega and lambda.                     #
+# The default omega value comes from the paper.                              #
+# The default lambda values comes from our experiments.                      #
+##############################################################################
+
+def entropy_term(Yhat):
+    # https://en.wikipedia.org/wiki/Entropy_(information_theory)
+    P = F.softmax(Yhat, 1)
+    logP = F.log_softmax(Yhat, 1)
+    N = P.shape[0]
+    return -torch.sum(P * logP) / N
+
+def neighbor_term(Yhat, Y, margin):
+    margin = torch.tensor(margin, device=Y.device)
+    P = F.softmax(Yhat, 1)
+    K = P.shape[1]
+    dP = torch.diff(P, 1)
+    sign = (torch.arange(K-1, device=Y.device)[None] >= Y[:, None])*2-1
+    return torch.mean(torch.sum(approx_relu(margin + sign*dP, 1)))
+
+class CO2(CrossEntropy):
+    def __init__(self, K, lamda=0.01, omega=0.05):
+        super().__init__(K)
+        self.lamda = lamda
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return ce(Yhat, Y) + self.lamda*neighbor_term(Yhat, Y, self.omega)
+
+class CO(CO2):
+    # CO is the same as CO2 with omega=0
+    def __init__(self, K, lamda=0.01, omega=0.05):
+        super().__init__(K, lamda, 0)
+
+class HO2(CrossEntropy):
+    def __init__(self, K, lamda=1.0, omega=0.05):
+        super().__init__(K)
+        self.lamda = lamda
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return entropy_term(Yhat) + self.lamda*neighbor_term(Yhat, Y, self.omega)
+
+##############################################################################
+# Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Quasi-Unimodal     #
+# Distributions for Ordinal Classification." Mathematics 10.6 (2022): 980.   #
+# https://www.mdpi.com/2227-7390/10/6/980                                    #
+##############################################################################
+# These losses require two parameters: omega and lambda.                     #
+# The default omega value comes from the paper.                              #
+# The default lambda values comes from our experiments.                      #
+##############################################################################
+
+def quasi_neighbor_term(Yhat, Y, margin):
+    margin = torch.tensor(margin, device=Y.device)
+    P = F.softmax(Yhat, 1)
+    K = P.shape[1]
+    ix = torch.arange(len(P))
+
+    # force close neighborhoods to be inferior to True class prob
+    has_left = Y > 0
+    close_left = has_left * approx_relu(margin+P[ix, Y-1]-P[:, Y])
+    has_right = Y < K-1
+    close_right = has_right * approx_relu(margin+P[ix, (Y+1)%K]-P[:, Y])
+
+    # force distant probabilities to be inferior than close neighborhoods of true class
+    left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
+    distant_left = torch.sum(left * approx_relu(margin+P-P[ix, Y-1][:, None]), 1)
+    right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
+    distant_right = torch.sum(right * approx_relu(margin+P-P[ix, (Y+1)%K][:, None]), 1)
+
+    return torch.mean(close_left + close_right + distant_left + distant_right)
+
+class QUL_CE(CrossEntropy):
+    def __init__(self, K, lamda=0.1, omega=0.05):
+        super().__init__(K)
+        self.lamda = lamda
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return ce(Yhat, Y) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
+
+class QUL_HO(CrossEntropy):
+    def __init__(self, K, lamda=10., omega=0.05):
+        super().__init__(K)
+        self.lamda = lamda
+        self.omega = omega
+
+    def __call__(self, Yhat, Y):
+        return entropy_term(Yhat) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
+
+
+##############################################################################
+# Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for      #
+# Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167   #
+# (2022). https://arxiv.org/pdf/2202.05167.pdf                               #
+##############################################################################
 
 class CDW_CE(CrossEntropy):
     # Reference: https://arxiv.org/pdf/2202.05167.pdf
@@ -194,42 +277,65 @@ class CDW_CE(CrossEntropy):
         Yhat = F.softmax(Yhat, 1)
         return -torch.mean(torch.log(1-Yhat) * torch.abs(torch.arange(self.K, device=Y.device)[None]-Y[:, None])**self.alpha)
 
-# Our losses that promote unimodality.
-# Notice that our losses require extra parameters: lamda and omega.
-# Reference: https://peerj.com/articles/cs-457/
+##############################################################################
+# To be published.                                                           #
+##############################################################################
 
-class OurLosses(CrossEntropy):
-    def __init__(self, K, lamda=0.1, omega=0.05):
+class UnimodalNet(CrossEntropy):
+    def activation(self, Yhat):
+        # first use relu: we need everything positive
+        # for differentiable reasons, we use leaky relu
+        Yhat = approx_relu(Yhat)
+        # if output=[X,Y,Z] => pos_slope=[X,X+Y,X+Y+Z]
+        # if output=[X,Y,Z] => neg_slope=[Z,Z+Y,Z+Y+X]
+        pos_slope = torch.cumsum(Yhat, 1)
+        neg_slope = torch.flip(torch.cumsum(torch.flip(Yhat, [1]), 1), [1])
+        Yhat = torch.minimum(pos_slope, neg_slope)
+        return Yhat
+
+def unimodal_wasserstein(p, mode):
+    # Returns the closest unimodal distribution to p with the given mode.
+    # Return tuple:
+    # 0: total transport cost
+    # 1: closest unimodal distribution
+    import numpy as np
+    from scipy.spatial.distance import squareform, pdist
+    from scipy.optimize import linprog
+    assert abs(p.sum()-1) < 1e-6, 'Expected normalized probability mass.'
+    assert np.any(p >= 0), 'Expected nonnegative probabilities.'
+    assert len(p.shape) == 1, 'Probabilities p must be a vector.'
+    assert 0 <= mode < p.size, 'Invalid mode value.'
+    K = p.size
+    C = squareform(pdist(np.arange(K)[:, None]))  # cost matrix
+    Ap = [([0]*i + [1] + [0]*(K-i-1))*K for i in range(K)]
+    Ai = [[0]*i*K + [1]*K + [-1]*K + [0]*(K-i-2)*K if i < mode else
+          [0]*i*K + [-1]*K + [1]*K + [0]*(K-i-2)*K for i in range(K-1)]
+    result = linprog(C.ravel(), A_ub=Ai, b_ub=np.zeros(K-1), A_eq=Ap, b_eq=p)
+    T = result.x.reshape(K, K)
+    return (T*C).sum(), T.sum(1)
+
+def emd(p, q):
+    # https://en.wikipedia.org/wiki/Earth_mover%27s_distance
+    pp = p.cumsum(1)
+    qq = q.cumsum(1)
+    return torch.mean(torch.sum(torch.abs(pp-qq), 1))
+
+class WassersteinUnimodal_KLDIV(CrossEntropy):
+    def __init__(self, K, lamda=100.):
         super().__init__(K)
         self.lamda = lamda
-        self.omega = omega
 
-class CO2(OurLosses):
-    # CO is the same with omega=0
+    def distance_loss(self, phat, phat_log, target):
+        return F.kl_div(phat_log, target, reduction='batchmean')
+
     def __call__(self, Yhat, Y):
-        return ce(Yhat, Y) + self.lamda*neighbor_term(Yhat, Y, self.omega)
+        Phat = torch.softmax(Yhat, 1)
+        Phat_log = F.log_softmax(Yhat, 1)
+        closest_unimodal = torch.stack([
+            torch.tensor(unimodal_wasserstein(phat, y)[1], dtype=torch.float32, device=Y.device)
+            for phat, y in zip(Phat.cpu().detach().numpy(), Y.cpu().numpy())])
+        return ce(Yhat, Y) + self.lamda*self.distance_loss(Phat, Phat_log, closest_unimodal)
 
-class CO(CO2):
-    # CO is the same as CO2 with omega=0
-    def __init__(self, K, lamda=0.1, omega=0.05):
-        super().__init__(K, lamda, 0)
-
-class HO2(OurLosses):
-    def __call__(self, Yhat, Y):
-        return entropy_term(Yhat) + self.lamda*neighbor_term(Yhat, Y, self.omega)
-
-# Our losses that promote quasi-unimodality (they are more forgiving than the
-# previous ones).
-# Reference: https://www.mdpi.com/2227-7390/10/6/980
-
-class QUL(OurLosses):
-    def __call__(self, Yhat, Y):
-        return quasi_neighbor_term(Yhat, Y, self.omega)
-
-class QUL_CE(OurLosses):
-    def __call__(self, Yhat, Y):
-        return ce(Yhat, Y) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
-
-class QUL_HO(OurLosses):
-    def __call__(self, Yhat, Y):
-        return entropy_term(Yhat) + self.lamda*quasi_neighbor_term(Yhat, Y, self.omega)
+class WassersteinUnimodal_EMD(WassersteinUnimodal_KLDIV):
+    def distance_loss(self, phat, phat_log, target):
+        return emd(phat, target)
