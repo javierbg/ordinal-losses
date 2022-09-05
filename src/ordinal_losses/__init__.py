@@ -320,6 +320,16 @@ def emd(p, q):
     qq = q.cumsum(1)
     return torch.mean(torch.sum(torch.abs(pp-qq), 1))
 
+def is_unimodal(p):
+    # checks (true/false) whether the given probability vector is unimodal. this
+    # function is not used by the following classes, but it is used in the paper
+    # to compute the "% times unimodal" metric
+    zero = torch.zeros(1, device=p.device)
+    p = torch.sign(torch.round(torch.diff(p, prepend=zero, append=zero), decimals=2))
+    p = torch.diff(p[p != 0])
+    p = p[p != 0]
+    return len(p) <= 1
+
 class WassersteinUnimodal_KLDIV(CrossEntropy):
     def __init__(self, K, lamda=100.):
         super().__init__(K)
