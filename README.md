@@ -9,9 +9,8 @@ PyTorch implementation of ordinal losses for neural networks from the following 
     * **CDW_CE:** Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167 (2022).
 * Losses that promote unimodality (soft)
     * **CO, CO2, HO2:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.
-    * **WassersteinUnimodal_KLDIV, WassersteinUnimodal_EMD:** to be published
-* Losses that promote quasi-unimodality (soft)
     * **QUL_CE, QUL_HO:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Quasi-Unimodal Distributions for Ordinal Classification." Mathematics 10.6 (2022): 980.
+    * **WassersteinUnimodal_KLDIV, WassersteinUnimodal_EMD:** to be published
 * Losses with activations that force unimodality (hard)
     * **BinomialUnimodal_CE, BinomialUnimodal_MSE:** Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The unimodal model for the classification of ordinal data." Neural Networks 21.1 (2008): 78-91.
     * **PoissonUnimodal:** Beckham, Christopher, and Christopher Pal. "Unimodal probability distributions for deep ordinal classification." International Conference on Machine Learning. PMLR, 2017.
