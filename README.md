@@ -1,10 +1,11 @@
 # Ordinal Losses
 PyTorch implementation of ordinal losses for neural networks from the following papers:
 
-* Categorical losses
-    * **CrossEntropy**
+* Classical losses
+    * **CrossEntropy**, **MAE**, **MSE**
 * Losses that promote ordinality
     * **OrdinalEncoding:** Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network approach to ordinal regression." 2008 IEEE international joint conference on neural networks (IEEE world congress on computational intelligence). IEEE, 2008.
+    * **WeightedKappa** (by default, Quadratic Weighted Kappa): de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss function for multi-class classification of ordinal data in deep learning." Pattern Recognition Letters 105 (2018): 144-154.
     * **CDW_CE:** Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167 (2022).
 * Losses that promote unimodality (soft)
     * **CO, CO2, HO2:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.

@@ -57,6 +57,16 @@ class CrossEntropy:
         Khat = self.to_classes(Phat, method)
         return Phat, Khat
 
+class MAE:
+    def __call__(self, Yhat, Y):
+        Phat = torch.softmax(Yhat, 1)
+        return F.l1_loss(Phat, Y)
+
+class MSE:
+    def __call__(self, Yhat, Y):
+        Phat = torch.softmax(Yhat, 1)
+        return F.mse_loss(Phat, Y)
+
 ##############################################################################
 # Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network      #
 # approach to ordinal regression." 2008 IEEE international joint conference  #
@@ -163,6 +173,31 @@ class PoissonUnimodal(CrossEntropy):
         Yhat = F.softplus(Yhat)
         KK = torch.arange(1., self.K+1, device=Yhat.device)[None]
         return KK*torch.log(Yhat) - Yhat - log_fact(KK)
+
+##############################################################################
+# de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss     #
+# function for multi-class classification of ordinal data in deep learning." #
+# Pattern Recognition Letters 105 (2018): 144-154.                           #
+# https://www.sciencedirect.com/science/article/abs/pii/S0167865517301666    #
+##############################################################################
+# Use n=2 (default) for Quadratic Weighted Kappa.                            #
+##############################################################################
+
+class WeightedKappa(CrossEntropy):
+    def __init__(self, K, n=2):
+        self.K = K
+        self.n = 2
+
+    def __call__(self, Yhat, Y):
+        Phat = torch.softmax(Yhat, 1)
+        kk = torch.arange(self.K, device=Y.device)
+        i, j = torch.meshgrid(kk, kk, indexing='xy')
+        w = torch.abs(i-j)**self.n
+        N = torch.sum(w[Y] * Phat)
+        Phat_sum = torch.sum(Phat, 0)
+        D = sum((torch.sum(Y == i)/len(Y)) * torch.sum(w[i] * Phat_sum) for i in range(self.K))
+        kappa = 1 - N/D
+        return torch.log(1-kappa)
 
 ##############################################################################
 # Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for #
