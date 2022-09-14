@@ -381,6 +381,6 @@ class WassersteinUnimodal_KLDIV(CrossEntropy):
             for phat, y in zip(Phat.cpu().detach().numpy(), Y.cpu().numpy())])
         return ce(Yhat, Y) + self.lamda*self.distance_loss(Phat, Phat_log, closest_unimodal)
 
-class WassersteinUnimodal_EMD(WassersteinUnimodal_KLDIV):
+class WassersteinUnimodal_Wass(WassersteinUnimodal_KLDIV):
     def distance_loss(self, phat, phat_log, target):
         return emd(phat, target)
