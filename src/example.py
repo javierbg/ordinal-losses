@@ -34,7 +34,7 @@ def train_model(loss, X, Y):
             x = x.to(device)
             y = y.to(device)
             yhat = model(x)
-            loss_value = loss(yhat, y)
+            loss_value = loss(yhat, y).mean()
             opt.zero_grad()
             loss_value.backward()
             opt.step()

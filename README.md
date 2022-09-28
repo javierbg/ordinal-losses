@@ -32,7 +32,7 @@ loss = ordinal_losses.OrdinalEncoder(K=10)
 model = BuildModel(n_outputs=loss.how_many_outputs())
 for X, Y in train:
     outputs = model(X)
-    loss_value = loss(outputs)
+    loss_value = loss(outputs).mean()
     # for evaluation purposes, use our methods to convert the outputs into
     # probabilities or classes
     probabilities, classes = loss.to_proba_and_classes(outputs)
@@ -41,4 +41,7 @@ for X, Y in train:
 * Your neural network should **not** perform any activation like softmax on the output.
 * You should **not** perform any pre-processing on the labels, such as one-hot encoding.
 * There is an example at `src/example.py`.
-* Please notice that some losses have hyperparameters that you may fine-tune. Please read the code for more API information.
+* Notice that some losses have hyperparameters that you may want to fine-tune.
+* Notice that we use `reduction=none`. You need to then do the average of the loss, as in the example above.
+
+The code is less than 500 lines, including comments. Please read the code for more information.
