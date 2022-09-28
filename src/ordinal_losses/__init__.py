@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import warnings
 
 ############################## UTILITIES #####################################
 
@@ -10,6 +9,20 @@ def fact(x):
 
 def log_fact(x):
     return torch.lgamma(x+1)
+
+def to_classes(probs, method=None):
+    # None=default; this is typically 'mode', but can be different for each
+    # loss.
+    assert method in (None, 'mode', 'mean', 'median')
+    if method == 'mean':  # so-called expectation trick
+        kk = torch.arange(args.classes, device=probs.device)
+        return torch.round(torch.sum(ypred * kk, 1)).long()
+    elif method == 'median':
+        # the weighted median is the value whose cumulative probability is 0.5
+        Pc = torch.cumsum(probs, 1)
+        return torch.sum(Pc < 0.5, 1)
+    else:  # default=mode
+        return probs.argmax(1)
 
 # we are using softplus instead of relu since it is smoother to optimize.
 # as in http://proceedings.mlr.press/v70/beckham17a/beckham17a.pdf
@@ -30,35 +43,18 @@ class CrossEntropy:
         # how many output neurons does this loss require?
         return self.K
 
-    def activation(self, ypred):
-        # output post-processing, if necessary
-        return ypred
-
     def __call__(self, ypred, ytrue):
         # computes the loss
-        return ce(self.activation(ypred), ytrue)
+        return ce(ypred, ytrue)
 
     def to_proba(self, ypred):
-        # call output -> probabilities
-        return F.softmax(self.activation(ypred), 1)
-
-    def to_classes(self, probs, method=None):
-        # None=default; this is typically 'mode', but can be different for each
-        # loss.
-        assert method in (None, 'mode', 'mean', 'median')
-        if method in (None, 'mode'):
-            return probs.argmax(1)
-        if method == 'mean':  # so-called expectation trick
-            kk = torch.arange(args.classes, device=probs.device)
-            return torch.round(torch.sum(ypred * kk, 1)).long()
-        if method == 'median':
-            # the weighted median is the value whose cumulative probability is 0.5
-            Pc = torch.cumsum(probs, 1)
-            return torch.sum(Pc < 0.5, 1)
+        # output -> probabilities
+        return F.softmax(ypred, 1)
 
     def to_proba_and_classes(self, ypred, method=None):
+        # output -> probabilities & classes
         probs = self.to_proba(ypred)
-        classes = self.to_classes(probs, method)
+        classes = to_classes(probs, method)
         return probs, classes
 
 class MAE(CrossEntropy):
@@ -107,16 +103,13 @@ class OrdinalEncoding(CrossEntropy):
         probs = probs / probs.sum(1, keepdim=True)
         return probs
 
-    def to_classes(self, probs, method=None):
-        warnings.warn('OrdinalEncoding.to_classes(): To use the same algorithm as the paper, use to_proba_and_classes(output) instead of to_classes(to_proba(output)) separately.')
-        return super().to_classes(probs, method)
-
     def to_proba_and_classes(self, ypred, method=None):
+        probs = self.to_proba(ypred)
         if method is None:
-            probs = self.to_proba(ypred)
             classes = torch.sum(ypred >= 0, 1)
-            return probs, classes
-        return super().to_proba_and_classes(self, ypred, method)
+        else:
+            classes = to_classes(probs, method)
+        return probs, classes
 
 ##############################################################################
 # da Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The        #
@@ -178,6 +171,12 @@ class PoissonUnimodal(CrossEntropy):
         KK = torch.arange(1., self.K+1, device=ypred.device)[None]
         return KK*torch.log(ypred) - ypred - log_fact(KK)
 
+    def __call__(self, ypred, ytrue):
+        return ce(self.activation(ypred), ytrue)
+
+    def to_proba(self, ypred):
+        return F.softmax(self.activation(ypred), 1)
+
 ##############################################################################
 # de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss     #
 # function for multi-class classification of ordinal data in deep learning." #
@@ -238,14 +237,14 @@ class CumulativeLinkLoss(CrossEntropy):
         else:
             model.cutpoints = torch.rand(ncutpoints, **params).sort()[0]
 
-    def activation(self, ypred):
+    def __call__(self, ypred, ytrue):
+        probs = self.to_proba(ypred)
+        return -torch.log(probs[ytrue, 0]+1e-7)  # cross-entropy
+
+    def to_proba(self, ypred):
         ypred = self.link_function(self.model.cutpoints - ypred)
         link_mat = ypred[:, 1:] - ypred[:, :-1]
         return torch.cat((ypred[:, [0]], link_mat, 1-ypred[:, [-1]]), 1)
-
-    def __call__(self, ypred, ytrue):
-        ypred = self.activation(ypred)
-        return -torch.log(ypred[ytrue, 0]+1e-7)  # cross-entropy
 
 ##############################################################################
 # Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for #
@@ -378,6 +377,12 @@ class UnimodalNet(CrossEntropy):
         neg_slope = torch.flip(torch.cumsum(torch.flip(ypred, [1]), 1), [1])
         ypred = torch.minimum(pos_slope, neg_slope)
         return ypred
+
+    def __call__(self, ypred, ytrue):
+        return ce(self.activation(ypred), ytrue)
+
+    def to_proba(self, ypred):
+        return F.softmax(self.activation(ypred), 1)
 
 def unimodal_wasserstein(p, mode):
     # Returns the closest unimodal distribution to p with the given mode.
