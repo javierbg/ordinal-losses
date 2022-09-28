@@ -6,6 +6,7 @@ PyTorch implementation of ordinal losses for neural networks from the following 
 * Losses that promote ordinality
     * **OrdinalEncoding:** Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network approach to ordinal regression." 2008 IEEE international joint conference on neural networks (IEEE world congress on computational intelligence). IEEE, 2008.
     * **WeightedKappa** (by default, Quadratic Weighted Kappa): de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss function for multi-class classification of ordinal data in deep learning." Pattern Recognition Letters 105 (2018): 144-154.
+    * **CumulativeLinkLoss** (based on POM): Vargas, Victor Manuel, Pedro Antonio Gutiérrez, and César Hervás-Martínez. "Cumulative link models for deep ordinal classification." Neurocomputing 401 (2020): 48-58.
     * **CDW_CE:** Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167 (2022).
 * Losses that promote unimodality (soft)
     * **CO, CO2, HO2:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.
@@ -27,12 +28,19 @@ pip3 install git+https://github.com/rpmcruz/ordinal-losses.git
 ```python
 import ordinal_losses
 loss = ordinal_losses.OrdinalEncoder(K=10)
+
 # different losses require different number of output neurons, therefore you
 # should ask the loss for how many output neurons are necessary
 model = BuildModel(n_outputs=loss.how_many_outputs())
+
+# some losses have learnable parameters; for that reason, you need to pass them
+# the model so they install those parameters (before the optimizer)
+loss.set_model(model)
+
 for X, Y in train:
     outputs = model(X)
     loss_value = loss(outputs).mean()
+
     # for evaluation purposes, use our methods to convert the outputs into
     # probabilities or classes
     probabilities, classes = loss.to_proba_and_classes(outputs)

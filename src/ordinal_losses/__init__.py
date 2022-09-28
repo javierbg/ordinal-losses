@@ -22,6 +22,10 @@ class CrossEntropy:
     def __init__(self, K):
         self.K = K
 
+    def set_model(self, model):
+        # some losses may use this to install learnable parameters
+        pass
+
     def how_many_outputs(self):
         # how many output neurons does this loss require?
         return self.K
@@ -187,7 +191,7 @@ class PoissonUnimodal(CrossEntropy):
 
 class WeightedKappa(CrossEntropy):
     def __init__(self, K, n=2):
-        self.K = K
+        super().__init__(K)
         self.n = 2
 
     def __call__(self, Yhat, Y):
@@ -200,6 +204,48 @@ class WeightedKappa(CrossEntropy):
         D = sum((torch.sum(Y == i)/len(Y)) * torch.sum(w[i] * Phat_sum) for i in range(self.K))
         kappa = 1 - N/D
         return torch.log(1-kappa+1e-7)
+
+##############################################################################
+# Vargas, Victor Manuel, Pedro Antonio Gutiérrez, and César Hervás-Martínez. #
+# "Cumulative link models for deep ordinal classification." Neurocomputing   #
+# 401 (2020): 48-58.                                                         #
+# https://www.sciencedirect.com/science/article/pii/S0925231220303805        #
+##############################################################################
+# This paper is an extension of POM (McCullagh, 1980).                       #
+# Loosely based on the code provided by the authors:                         #
+# https://github.com/EthanRosenthal/spacecutter                              #
+##############################################################################
+
+class CumulativeLinkLoss(CrossEntropy):
+    def how_many_outputs(self):
+        return 1
+
+    def __init__(self, K, link_function=torch.sigmoid, init_cutpoints='ordered'):
+        super().__init__(K)
+        assert init_cutpoints in ('ordered', 'random')
+        self.link_function = link_function
+        self.init_cutpoints = init_cutpoints
+
+    def set_model(self, model):
+        self.model = model
+        if hasattr(model, 'cutpoints'):
+            return
+        ncutpoints = self.K-1
+        device = next(model.parameters()).device
+        params = {'dtype': torch.float32, 'requires_grad': True, 'device': device}
+        if self.init_cutpoints == 'ordered':
+            model.cutpoints = torch.arange(ncutpoints, **params) - ncutpoints/2
+        else:
+            model.cutpoints = torch.rand(ncutpoints, **params).sort()[0]
+
+    def activation(self, Yhat):
+        Yhat = self.link_function(self.model.cutpoints - Yhat)
+        link_mat = Yhat[:, 1:] - Yhat[:, :-1]
+        return torch.cat((Yhat[:, [0]], link_mat, 1-Yhat[:, [-1]]), 1)
+
+    def __call__(self, Yhat, Y):
+        Yhat = self.activation(Yhat)
+        return -torch.log(Yhat[Y, 0]+1e-7)  # cross-entropy
 
 ##############################################################################
 # Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for #

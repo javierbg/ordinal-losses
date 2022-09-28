@@ -26,15 +26,16 @@ def train_model(loss, X, Y):
         torch.nn.ReLU(),
         torch.nn.Linear(128, loss.how_many_outputs()),
     ).to(device)
-    opt = torch.optim.Adam(model.parameters())
+    loss.set_model(model)
+    opt = torch.optim.Adam(model.parameters(), 1e-4)
     model.train()
     ds = torch.utils.data.DataLoader(list(zip(X, Y)), 64, True)
     for _ in range(100):
         for x, y in ds:
             x = x.to(device)
             y = y.to(device)
-            yhat = model(x)
-            loss_value = loss(yhat, y).mean()
+            ypred = model(x)
+            loss_value = loss(ypred, y).mean()
             opt.zero_grad()
             loss_value.backward()
             opt.step()
@@ -46,9 +47,9 @@ def eval_model(model, metric, X, Y):
     for x, y in ds:
         x = x.to(device)
         y = y.to(device)
-        yhat = model(x)
-        _, yhat = loss.to_proba_and_classes(yhat)
-        metric.update(yhat, y)
+        ypred = model(x)
+        _, ypred = loss.to_proba_and_classes(ypred)
+        metric.update(ypred, y)
     return metric.compute()
 
 if __name__ == '__main__':
