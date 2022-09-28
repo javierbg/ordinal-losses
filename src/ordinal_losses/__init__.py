@@ -30,46 +30,46 @@ class CrossEntropy:
         # how many output neurons does this loss require?
         return self.K
 
-    def activation(self, Yhat):
+    def activation(self, ypred):
         # output post-processing, if necessary
-        return Yhat
+        return ypred
 
-    def __call__(self, Yhat, Y):
+    def __call__(self, ypred, ytrue):
         # computes the loss
-        return ce(self.activation(Yhat), Y)
+        return ce(self.activation(ypred), ytrue)
 
-    def to_proba(self, Yhat):
+    def to_proba(self, ypred):
         # call output -> probabilities
-        return F.softmax(self.activation(Yhat), 1)
+        return F.softmax(self.activation(ypred), 1)
 
-    def to_classes(self, Phat, method=None):
+    def to_classes(self, probs, method=None):
         # None=default; this is typically 'mode', but can be different for each
         # loss.
         assert method in (None, 'mode', 'mean', 'median')
         if method in (None, 'mode'):
-            return Phat.argmax(1)
+            return probs.argmax(1)
         if method == 'mean':  # so-called expectation trick
-            kk = torch.arange(args.classes, device=Phat.device)
-            return torch.round(torch.sum(Yhat * kk, 1)).long()
+            kk = torch.arange(args.classes, device=probs.device)
+            return torch.round(torch.sum(ypred * kk, 1)).long()
         if method == 'median':
             # the weighted median is the value whose cumulative probability is 0.5
-            Pc = torch.cumsum(Phat, 1)
+            Pc = torch.cumsum(probs, 1)
             return torch.sum(Pc < 0.5, 1)
 
-    def to_proba_and_classes(self, Yhat, method=None):
-        Phat = self.to_proba(Yhat)
-        Khat = self.to_classes(Phat, method)
-        return Phat, Khat
+    def to_proba_and_classes(self, ypred, method=None):
+        probs = self.to_proba(ypred)
+        classes = self.to_classes(probs, method)
+        return probs, classes
 
 class MAE(CrossEntropy):
-    def __call__(self, Yhat, Y):
-        Phat = torch.softmax(Yhat, 1)
-        return torch.sum(torch.abs(Phat-Y[:, None]), 1)
+    def __call__(self, ypred, ytrue):
+        probs = torch.softmax(ypred, 1)
+        return torch.sum(torch.abs(probs-ytrue[:, None]), 1)
 
 class MSE(CrossEntropy):
-    def __call__(self, Yhat, Y):
-        Phat = torch.softmax(Yhat, 1)
-        return torch.sum((Phat-Y[:, None])**2, 1)
+    def __call__(self, ypred, ytrue):
+        probs = torch.softmax(ypred, 1)
+        return torch.sum((probs-ytrue[:, None])**2, 1)
 
 ##############################################################################
 # Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network      #
@@ -82,41 +82,41 @@ class OrdinalEncoding(CrossEntropy):
     def how_many_outputs(self):
         return self.K-1
 
-    def __call__(self, Yhat, Y):
+    def __call__(self, ypred, ytrue):
         # if K=4, then
         #                k = 0  1  2
         #     Y=0 => P(Y>k)=[0, 0, 0]
         #     Y=1 => P(Y>k)=[1, 0, 0]
         #     Y=2 => P(Y>k)=[1, 1, 0]
         #     Y=3 => P(Y>k)=[1, 1, 1]
-        KK = torch.arange(self.K-1, device=Y.device).expand(Y.shape[0], -1)
-        YY = (Y[:, None] > KK).float()
-        return torch.sum(F.binary_cross_entropy_with_logits(Yhat, YY, reduction='none'), 1)
+        KK = torch.arange(self.K-1, device=ytrue.device).expand(ytrue.shape[0], -1)
+        yytrue = (ytrue[:, None] > KK).float()
+        return torch.sum(F.binary_cross_entropy_with_logits(ypred, yytrue, reduction='none'), 1)
 
-    def to_proba(self, Yhat):
+    def to_proba(self, ypred):
         # we need to convert mass distribution into probabilities
         # i.e. P(Y>k) into P(Y=k)
         # P(Y=0) = 1-P(Y>0)
         # P(Y=1) = P(Y>0)-P(Y>1)
         # ...
         # P(Y=K-1) = P(Y>K-2)
-        Phat = torch.sigmoid(Yhat)
-        Phat = torch.cat((1-Phat[:, :1], Phat[:, :-1]-Phat[:, 1:], Phat[:, -1:]), 1)
+        probs = torch.sigmoid(ypred)
+        probs = torch.cat((1-probs[:, :1], probs[:, :-1]-probs[:, 1:], probs[:, -1:]), 1)
         # there may be small discrepancies
-        Phat = torch.clamp(Phat, 0, 1)
-        Phat = Phat / Phat.sum(1, keepdim=True)
-        return Phat
+        probs = torch.clamp(probs, 0, 1)
+        probs = probs / probs.sum(1, keepdim=True)
+        return probs
 
-    def to_classes(self, Phat, method=None):
+    def to_classes(self, probs, method=None):
         warnings.warn('OrdinalEncoding.to_classes(): To use the same algorithm as the paper, use to_proba_and_classes(output) instead of to_classes(to_proba(output)) separately.')
-        return super().to_classes(Phat, method)
+        return super().to_classes(probs, method)
 
-    def to_proba_and_classes(self, Yhat, method=None):
+    def to_proba_and_classes(self, ypred, method=None):
         if method is None:
-            Phat = self.to_proba(Yhat)
-            Khat = torch.sum(Yhat >= 0, 1)
-            return Phat, Khat
-        return super().to_proba_and_classes(self, Yhat, method)
+            probs = self.to_proba(ypred)
+            classes = torch.sum(ypred >= 0, 1)
+            return probs, classes
+        return super().to_proba_and_classes(self, ypred, method)
 
 ##############################################################################
 # da Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The        #
@@ -129,37 +129,37 @@ class BinomialUnimodal_CE(CrossEntropy):
     def how_many_outputs(self):
         return 1
 
-    def __call__(self, Yhat, Y):
-        return F.nll_loss(self.to_log_proba(Yhat), Y, reduction='none')
+    def __call__(self, ypred, ytrue):
+        return F.nll_loss(self.to_log_proba(ypred), ytrue, reduction='none')
 
-    def to_proba(self, Yhat):
-        device = Yhat.device
-        Phat = torch.sigmoid(Yhat)
-        N = Yhat.shape[0]
+    def to_proba(self, ypred):
+        device = ypred.device
+        probs = torch.sigmoid(ypred)
+        N = ypred.shape[0]
         K = torch.tensor(self.K, dtype=torch.float, device=device)
         kk = torch.ones((N, self.K), device=device) * torch.arange(self.K, dtype=torch.float, device=device)[None]
-        num = fact(K-1) * (Phat**kk) * (1-Phat)**(K-kk-1)
+        num = fact(K-1) * (probs**kk) * (1-probs)**(K-kk-1)
         den = fact(kk) * fact(K-kk-1)
         return num / den
 
-    def to_log_proba(self, Yhat):
-        device = Yhat.device
-        log_Phat = F.logsigmoid(Yhat)
-        log_inv_Phat = F.logsigmoid(-Yhat)
-        N = Yhat.shape[0]
+    def to_log_proba(self, ypred):
+        device = ypred.device
+        log_probs = F.logsigmoid(ypred)
+        log_inv_probs = F.logsigmoid(-ypred)
+        N = ypred.shape[0]
         K = torch.tensor(self.K, dtype=torch.float, device=device)
         kk = torch.ones((N, self.K), device=device) * torch.arange(self.K, dtype=torch.float, device=device)[None]
-        num = log_fact(K-1) + kk*log_Phat + (K-kk-1)*log_inv_Phat
+        num = log_fact(K-1) + kk*log_probs + (K-kk-1)*log_inv_probs
         den = log_fact(kk) + log_fact(K-kk-1)
         return num - den
 
 class BinomialUnimodal_MSE(BinomialUnimodal_CE):
-    def __call__(self, Yhat, Y):
-        device = Yhat.device
-        Phat = self.to_proba(Yhat)
-        Y_onehot = torch.zeros(Phat.shape[0], self.K, device=device)
-        Y_onehot[range(Phat.shape[0]), Y] = 1
-        return torch.sum((Phat - Y_onehot)**2, 1)
+    def __call__(self, ypred, ytrue):
+        device = ypred.device
+        probs = self.to_proba(ypred)
+        yonehot = torch.zeros(probs.shape[0], self.K, device=device)
+        yonehot[range(probs.shape[0]), ytrue] = 1
+        return torch.sum((probs - yonehot)**2, 1)
 
 ##############################################################################
 # Beckham, Christopher, and Christopher Pal. "Unimodal probability           #
@@ -172,11 +172,11 @@ class PoissonUnimodal(CrossEntropy):
     def how_many_outputs(self):
         return 1
 
-    def activation(self, Yhat):
+    def activation(self, ypred):
         # they apply softplus (relu) to avoid log(negative)
-        Yhat = F.softplus(Yhat)
-        KK = torch.arange(1., self.K+1, device=Yhat.device)[None]
-        return KK*torch.log(Yhat) - Yhat - log_fact(KK)
+        ypred = F.softplus(ypred)
+        KK = torch.arange(1., self.K+1, device=ypred.device)[None]
+        return KK*torch.log(ypred) - ypred - log_fact(KK)
 
 ##############################################################################
 # de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss     #
@@ -194,14 +194,14 @@ class WeightedKappa(CrossEntropy):
         super().__init__(K)
         self.n = 2
 
-    def __call__(self, Yhat, Y):
-        Phat = torch.softmax(Yhat, 1)
-        kk = torch.arange(self.K, device=Y.device)
+    def __call__(self, ypred, ytrue):
+        probs = torch.softmax(ypred, 1)
+        kk = torch.arange(self.K, device=ytrue.device)
         i, j = torch.meshgrid(kk, kk, indexing='xy')
         w = torch.abs(i-j)**self.n
-        N = torch.sum(w[Y] * Phat)
-        Phat_sum = torch.sum(Phat, 0)
-        D = sum((torch.sum(Y == i)/len(Y)) * torch.sum(w[i] * Phat_sum) for i in range(self.K))
+        N = torch.sum(w[ytrue] * probs)
+        probs_sum = torch.sum(probs, 0)
+        D = sum((torch.sum(ytrue == i)/len(ytrue)) * torch.sum(w[i] * probs_sum) for i in range(self.K))
         kappa = 1 - N/D
         return torch.log(1-kappa+1e-7)
 
@@ -238,14 +238,14 @@ class CumulativeLinkLoss(CrossEntropy):
         else:
             model.cutpoints = torch.rand(ncutpoints, **params).sort()[0]
 
-    def activation(self, Yhat):
-        Yhat = self.link_function(self.model.cutpoints - Yhat)
-        link_mat = Yhat[:, 1:] - Yhat[:, :-1]
-        return torch.cat((Yhat[:, [0]], link_mat, 1-Yhat[:, [-1]]), 1)
+    def activation(self, ypred):
+        ypred = self.link_function(self.model.cutpoints - ypred)
+        link_mat = ypred[:, 1:] - ypred[:, :-1]
+        return torch.cat((ypred[:, [0]], link_mat, 1-ypred[:, [-1]]), 1)
 
-    def __call__(self, Yhat, Y):
-        Yhat = self.activation(Yhat)
-        return -torch.log(Yhat[Y, 0]+1e-7)  # cross-entropy
+    def __call__(self, ypred, ytrue):
+        ypred = self.activation(ypred)
+        return -torch.log(ypred[ytrue, 0]+1e-7)  # cross-entropy
 
 ##############################################################################
 # Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for #
@@ -257,18 +257,18 @@ class CumulativeLinkLoss(CrossEntropy):
 # The default lambda values comes from our experiments.                      #
 ##############################################################################
 
-def entropy_term(Yhat):
+def entropy_term(ypred):
     # https://en.wikipedia.org/wiki/Entropy_(information_theory)
-    P = F.softmax(Yhat, 1)
-    logP = F.log_softmax(Yhat, 1)
+    P = F.softmax(ypred, 1)
+    logP = F.log_softmax(ypred, 1)
     return -torch.sum(P * logP, 1)
 
-def neighbor_term(Yhat, Y, margin):
-    margin = torch.tensor(margin, device=Y.device)
-    P = F.softmax(Yhat, 1)
+def neighbor_term(ypred, ytrue, margin):
+    margin = torch.tensor(margin, device=ytrue.device)
+    P = F.softmax(ypred, 1)
     K = P.shape[1]
     dP = torch.diff(P, 1)
-    sign = (torch.arange(K-1, device=Y.device)[None] >= Y[:, None])*2-1
+    sign = (torch.arange(K-1, device=ytrue.device)[None] >= ytrue[:, None])*2-1
     return torch.sum(approx_relu(margin + sign*dP, 1))
 
 class CO2(CrossEntropy):
@@ -277,9 +277,9 @@ class CO2(CrossEntropy):
         self.lamda = lamda
         self.omega = omega
 
-    def __call__(self, Yhat, Y):
-        term = neighbor_term(Yhat, Y, self.omega)
-        return ce(Yhat, Y) + self.lamda*term
+    def __call__(self, ypred, ytrue):
+        term = neighbor_term(ypred, ytrue, self.omega)
+        return ce(ypred, ytrue) + self.lamda*term
 
 class CO(CO2):
     # CO is the same as CO2 with omega=0
@@ -292,9 +292,9 @@ class HO2(CrossEntropy):
         self.lamda = lamda
         self.omega = omega
 
-    def __call__(self, Yhat, Y, reduction='mean'):
-        term = neighbor_term(Yhat, Y, self.omega)
-        return entropy_term(Yhat) + self.lamda*term
+    def __call__(self, ypred, ytrue, reduction='mean'):
+        term = neighbor_term(ypred, ytrue, self.omega)
+        return entropy_term(ypred) + self.lamda*term
 
 ##############################################################################
 # Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Quasi-Unimodal     #
@@ -306,23 +306,23 @@ class HO2(CrossEntropy):
 # The default lambda values comes from our experiments.                      #
 ##############################################################################
 
-def quasi_neighbor_term(Yhat, Y, margin):
-    margin = torch.tensor(margin, device=Y.device)
-    P = F.softmax(Yhat, 1)
+def quasi_neighbor_term(ypred, ytrue, margin):
+    margin = torch.tensor(margin, device=ytrue.device)
+    P = F.softmax(ypred, 1)
     K = P.shape[1]
     ix = torch.arange(len(P))
 
     # force close neighborhoods to be inferior to True class prob
-    has_left = Y > 0
-    close_left = has_left * approx_relu(margin+P[ix, Y-1]-P[ix, Y])
-    has_right = Y < K-1
-    close_right = has_right * approx_relu(margin+P[ix, (Y+1)%K]-P[ix, Y])
+    has_left = ytrue > 0
+    close_left = has_left * approx_relu(margin+P[ix, ytrue-1]-P[ix, ytrue])
+    has_right = ytrue < K-1
+    close_right = has_right * approx_relu(margin+P[ix, (ytrue+1)%K]-P[ix, ytrue])
 
     # force distant probabilities to be inferior than close neighborhoods of true class
-    left = torch.arange(K, device=Y.device)[None] < Y[:, None]-1
-    distant_left = torch.sum(left * approx_relu(margin+P-P[ix, Y-1][:, None]), 1)
-    right = torch.arange(K, device=Y.device)[None] > Y[:, None]+1
-    distant_right = torch.sum(right * approx_relu(margin+P-P[ix, (Y+1)%K][:, None]), 1)
+    left = torch.arange(K, device=ytrue.device)[None] < ytrue[:, None]-1
+    distant_left = torch.sum(left * approx_relu(margin+P-P[ix, ytrue-1][:, None]), 1)
+    right = torch.arange(K, device=ytrue.device)[None] > ytrue[:, None]+1
+    distant_right = torch.sum(right * approx_relu(margin+P-P[ix, (ytrue+1)%K][:, None]), 1)
 
     return close_left + close_right + distant_left + distant_right
 
@@ -332,9 +332,9 @@ class QUL_CE(CrossEntropy):
         self.lamda = lamda
         self.omega = omega
 
-    def __call__(self, Yhat, Y):
-        term = quasi_neighbor_term(Yhat, Y, self.omega)
-        return ce(Yhat, Y) + self.lamda*term
+    def __call__(self, ypred, ytrue):
+        term = quasi_neighbor_term(ypred, ytrue, self.omega)
+        return ce(ypred, ytrue) + self.lamda*term
 
 class QUL_HO(CrossEntropy):
     def __init__(self, K, lamda=10., omega=0.05):
@@ -342,9 +342,9 @@ class QUL_HO(CrossEntropy):
         self.lamda = lamda
         self.omega = omega
 
-    def __call__(self, Yhat, Y):
-        term = quasi_neighbor_term(Yhat, Y, self.omega)
-        return entropy_term(Yhat) + self.lamda*term
+    def __call__(self, ypred, ytrue):
+        term = quasi_neighbor_term(ypred, ytrue, self.omega)
+        return entropy_term(ypred) + self.lamda*term
 
 
 ##############################################################################
@@ -359,25 +359,25 @@ class CDW_CE(CrossEntropy):
         super().__init__(K)
         self.alpha = alpha
 
-    def __call__(self, Yhat, Y):
-        Yhat = F.softmax(Yhat, 1)
-        return -torch.sum(torch.log(1-Yhat) * torch.abs(torch.arange(self.K, device=Y.device)[None]-Y[:, None])**self.alpha, 1)
+    def __call__(self, ypred, ytrue):
+        ypred = F.softmax(ypred, 1)
+        return -torch.sum(torch.log(1-ypred) * torch.abs(torch.arange(self.K, device=ytrue.device)[None]-ytrue[:, None])**self.alpha, 1)
 
 ##############################################################################
 # To be published.                                                           #
 ##############################################################################
 
 class UnimodalNet(CrossEntropy):
-    def activation(self, Yhat):
+    def activation(self, ypred):
         # first use relu: we need everything positive
         # for differentiable reasons, we use leaky relu
-        Yhat = approx_relu(Yhat)
+        ypred = approx_relu(ypred)
         # if output=[X,Y,Z] => pos_slope=[X,X+Y,X+Y+Z]
         # if output=[X,Y,Z] => neg_slope=[Z,Z+Y,Z+Y+X]
-        pos_slope = torch.cumsum(Yhat, 1)
-        neg_slope = torch.flip(torch.cumsum(torch.flip(Yhat, [1]), 1), [1])
-        Yhat = torch.minimum(pos_slope, neg_slope)
-        return Yhat
+        pos_slope = torch.cumsum(ypred, 1)
+        neg_slope = torch.flip(torch.cumsum(torch.flip(ypred, [1]), 1), [1])
+        ypred = torch.minimum(pos_slope, neg_slope)
+        return ypred
 
 def unimodal_wasserstein(p, mode):
     # Returns the closest unimodal distribution to p with the given mode.
@@ -424,14 +424,14 @@ class WassersteinUnimodal_KLDIV(CrossEntropy):
     def distance_loss(self, phat, phat_log, target):
         return torch.sum(F.kl_div(phat_log, target, reduction='none'), 1)
 
-    def __call__(self, Yhat, Y):
-        Phat = torch.softmax(Yhat, 1)
-        Phat_log = F.log_softmax(Yhat, 1)
+    def __call__(self, ypred, ytrue):
+        probs = torch.softmax(ypred, 1)
+        probs_log = F.log_softmax(ypred, 1)
         closest_unimodal = torch.stack([
-            torch.tensor(unimodal_wasserstein(phat, y)[1], dtype=torch.float32, device=Y.device)
-            for phat, y in zip(Phat.cpu().detach().numpy(), Y.cpu().numpy())])
-        term = self.distance_loss(Phat, Phat_log, closest_unimodal)
-        return ce(Yhat, Y) + self.lamda*term
+            torch.tensor(unimodal_wasserstein(phat, y)[1], dtype=torch.float32, device=ytrue.device)
+            for phat, y in zip(probs.cpu().detach().numpy(), ytrue.cpu().numpy())])
+        term = self.distance_loss(probs, probs_log, closest_unimodal)
+        return ce(ypred, ytrue) + self.lamda*term
 
 class WassersteinUnimodal_Wass(WassersteinUnimodal_KLDIV):
     def distance_loss(self, phat, phat_log, target):
