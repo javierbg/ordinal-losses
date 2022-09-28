@@ -5,12 +5,6 @@ import warnings
 
 ############################## UTILITIES #####################################
 
-def reshape_masks(masks):
-    # this package works only predicts vectors (N,K), therefore if you would
-    # like to use this package to predict masks (N,K,H,W), you need to reshape
-    # them to a vector.
-    return masks.permute(0, 2, 3, 1).flatten(0, 2)
-
 def fact(x):
     return torch.exp(torch.lgamma(x+1))
 

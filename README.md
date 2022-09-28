@@ -39,6 +39,7 @@ for X, Y in train:
 ```
 
 * Your neural network should **not** perform any activation like softmax on the output.
+* `Y` should be a vector. If you are working in image segmentation and some other task, re-order and reshape your groundtruth/output accordingly.
 * You should **not** perform any pre-processing on the labels, such as one-hot encoding.
 * There is an example at `src/example.py`.
 * Notice that some losses have hyperparameters that you may want to fine-tune.
