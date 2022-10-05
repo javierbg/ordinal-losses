@@ -8,11 +8,11 @@ PyTorch implementation of ordinal losses for neural networks from the following 
     * **WeightedKappa** (by default, Quadratic Weighted Kappa): de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss function for multi-class classification of ordinal data in deep learning." Pattern Recognition Letters 105 (2018): 144-154.
     * **CumulativeLinkLoss** (based on POM): Vargas, Victor Manuel, Pedro Antonio Gutiérrez, and César Hervás-Martínez. "Cumulative link models for deep ordinal classification." Neurocomputing 401 (2020): 48-58.
     * **CDW_CE:** Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167 (2022).
-* Losses that promote unimodality (soft)
+* Losses that promote (soft) unimodality
     * **CO, CO2, HO2:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.
     * **QUL_CE, QUL_HO:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Quasi-Unimodal Distributions for Ordinal Classification." Mathematics 10.6 (2022): 980.
     * **WassersteinUnimodal_KLDIV, WassersteinUnimodal_Wass:** to be published
-* Losses with activations that force unimodality (hard)
+* Losses with activations that force (hard) unimodality
     * **BinomialUnimodal_CE, BinomialUnimodal_MSE:** Costa, Joaquim F. Pinto, Hugo Alonso, and Jaime S. Cardoso. "The unimodal model for the classification of ordinal data." Neural Networks 21.1 (2008): 78-91.
     * **PoissonUnimodal:** Beckham, Christopher, and Christopher Pal. "Unimodal probability distributions for deep ordinal classification." International Conference on Machine Learning. PMLR, 2017.
     * **UnimodalNet:** to be published
