@@ -58,14 +58,22 @@ class CrossEntropy:
         return probs, classes
 
 class MAE(CrossEntropy):
-    def __call__(self, ypred, ytrue):
-        probs = torch.softmax(ypred, 1)
-        return torch.sum(torch.abs(probs-ytrue[:, None]), 1)
+    def how_many_outputs(self):
+        return 1
 
-class MSE(CrossEntropy):
     def __call__(self, ypred, ytrue):
-        probs = torch.softmax(ypred, 1)
-        return torch.sum((probs-ytrue[:, None])**2, 1)
+        ypred = torch.clamp(ypred, 0, self.K-1)[:, 0]
+        return torch.abs(ypred-ytrue)
+
+    def to_proba_and_classes(self, ypred, method=None):
+        ypred = torch.clamp(ypred, 0, self.K-1)[:, 0].long()
+        probs = torch.nn.functional.one_hot(ypred, self.K)
+        return probs, ypred
+
+class MSE(MAE):
+    def __call__(self, ypred, ytrue):
+        ypred = torch.clamp(ypred, 0, self.K-1)[:, 0]
+        return (ypred-ytrue)**2
 
 ##############################################################################
 # Cheng, Jianlin, Zheng Wang, and Gianluca Pollastri. "A neural network      #
