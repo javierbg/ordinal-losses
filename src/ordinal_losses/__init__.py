@@ -290,7 +290,7 @@ class CO2(CrossEntropy):
 
 class CO(CO2):
     # CO is the same as CO2 with omega=0
-    def __init__(self, K, lamda=0.01, omega=0.05):
+    def __init__(self, K, lamda=0.01):
         super().__init__(K, lamda, 0)
 
 class HO2(CrossEntropy):
