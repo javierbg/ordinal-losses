@@ -361,14 +361,33 @@ class QUL_HO(CrossEntropy):
 ##############################################################################
 
 class CDW_CE(CrossEntropy):
-    # Reference: https://arxiv.org/pdf/2202.05167.pdf
     def __init__(self, K, alpha=5):
         super().__init__(K)
         self.alpha = alpha
 
+    def d(self, y):
+        i = torch.arange(self.K, device=y.device)[None]
+        y = y[:, None]
+        return torch.abs(i-y)
+
     def __call__(self, ypred, ytrue):
         ypred = F.softmax(ypred, 1)
-        return -torch.sum(torch.log(1-ypred) * torch.abs(torch.arange(self.K, device=ytrue.device)[None]-ytrue[:, None])**self.alpha, 1)
+        return -torch.sum(torch.log(1-ypred) * self.d(ytrue)**self.alpha, 1)
+
+##############################################################################
+# Castagnos, François, Martin Mihelich, and Charles Dognin. "A Simple Log-   #
+# -based Loss Function for Ordinal Text Classification." Proceedings of the  #
+# 29th International Conference on Computational Linguistics. 2022.          #
+# https://aclanthology.org/2022.coling-1.407.pdf                             #
+##############################################################################
+# Notice that this paper proposes something akin to the previous paper       #
+# (except they find alpha=1.5 to be better). Not sure which paper came       #
+# first.                                                                     #
+##############################################################################
+
+class OrdinalLogLoss(CDW_CE):
+    def __init__(self, K, alpha=1.5):
+        super().__init__(K, alpha)
 
 ##############################################################################
 # To be published.                                                           #

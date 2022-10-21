@@ -8,6 +8,7 @@ PyTorch implementation of ordinal losses for neural networks from the following 
     * **WeightedKappa** (by default, Quadratic Weighted Kappa): de La Torre, Jordi, Domenec Puig, and Aida Valls. "Weighted kappa loss function for multi-class classification of ordinal data in deep learning." Pattern Recognition Letters 105 (2018): 144-154.
     * **CumulativeLinkLoss** (based on POM): Vargas, Victor Manuel, Pedro Antonio Gutiérrez, and César Hervás-Martínez. "Cumulative link models for deep ordinal classification." Neurocomputing 401 (2020): 48-58.
     * **CDW_CE:** Polat, Gorkem, et al. "Class Distance Weighted Cross-Entropy Loss for Ulcerative Colitis Severity Estimation." arXiv preprint arXiv:2202.05167 (2022).
+    * **OrdinalLogLoss:** [this loss is identical to the previous one] Castagnos, François, Martin Mihelich, and Charles Dognin. "A Simple Log-based Loss Function for Ordinal Text Classification." Proceedings of the 29th International Conference on Computational Linguistics. 2022.
 * Losses that promote (soft) unimodality
     * **CO, CO2, HO2:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Ordinal losses for classification of cervical cancer risk." PeerJ Computer Science 7 (2021): e457.
     * **QUL_CE, QUL_HO:** Albuquerque, Tomé, Ricardo Cruz, and Jaime S. Cardoso. "Quasi-Unimodal Distributions for Ordinal Classification." Mathematics 10.6 (2022): 980.
